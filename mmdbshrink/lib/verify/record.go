@@ -27,7 +27,7 @@ type canonicalRecord struct {
 
 func (r *canonicalRecord) UnmarshalMaxMindDB(d *mmdbdata.Decoder) error {
 	r.data = r.data[:0]
-	data, err := appendCanonicalMMDBValue(r.data, d, "$", r.schema)
+	data, err := appendCanonicalMMDBValue(r.data, d, "$", r.schema, 0)
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,24 @@ type canonicalMapEntry struct {
 	value []byte
 }
 
-func appendCanonicalMMDBValue(dst []byte, d *mmdbdata.Decoder, path string, schema map[string]int) ([]byte, error) {
+// maxCanonicalDepth caps how deeply the canonical encoder nests. It matches
+// the limit the upstream reader applies to its own decoder.
+//
+// The guard is needed because this decoder implements the Unmarshaler
+// interface, which bypasses the reader's own depth limit. Without it, a
+// record whose containers point back at each other recurses forever.
+const maxCanonicalDepth = 512
+
+func appendCanonicalMMDBValue(
+	dst []byte,
+	d *mmdbdata.Decoder,
+	path string,
+	schema map[string]int,
+	depth int,
+) ([]byte, error) {
+	if depth > maxCanonicalDepth {
+		return dst, fmt.Errorf("maximum data structure depth exceeded at %s", path)
+	}
 	kind, err := d.PeekKind()
 	if err != nil {
 		return dst, err
@@ -64,7 +81,7 @@ func appendCanonicalMMDBValue(dst []byte, d *mmdbdata.Decoder, path string, sche
 			if err != nil {
 				return dst, err
 			}
-			value, err := appendCanonicalMMDBValue(nil, d, path+"."+string(key), schema)
+			value, err := appendCanonicalMMDBValue(nil, d, path+"."+string(key), schema, depth+1)
 			if err != nil {
 				return dst, err
 			}
@@ -97,7 +114,7 @@ func appendCanonicalMMDBValue(dst []byte, d *mmdbdata.Decoder, path string, sche
 			if err != nil {
 				return dst, err
 			}
-			dst, err = appendCanonicalMMDBValue(dst, d, path+"[]", schema)
+			dst, err = appendCanonicalMMDBValue(dst, d, path+"[]", schema, depth+1)
 			if err != nil {
 				return dst, err
 			}
