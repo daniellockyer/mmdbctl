@@ -9,9 +9,9 @@ require (
 	github.com/fatih/color v1.16.0
 	github.com/ipinfo/cli v0.0.0-20240814004006-a9ca4b1d939d
 	github.com/maxmind/mmdbwriter v1.0.1-0.20231024181307-469cd9b959b4
-	github.com/oschwald/maxminddb-golang/v2 v2.3.0
+	github.com/oschwald/maxminddb-golang/v2 v2.4.0
 	github.com/spf13/pflag v1.0.5
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.45.0
 )
 
 require (
