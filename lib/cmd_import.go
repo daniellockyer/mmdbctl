@@ -533,8 +533,32 @@ func ParseJSONKeys(result map[string]interface{}, f *CmdImportFlags) {
 	}
 }
 
+// decimalToIP converts a decimal-formatted IP address to its canonical form,
+// returning nil if the string isn't one.
+//
+// It exists because iputil.DecimalStrToIP panics on a negative number: the
+// upstream helper compares the parsed value against the IPv4 and IPv6 maxima
+// without rejecting negatives first, so a negative value reaches the IPv4
+// branch and is copied into a 4-byte buffer using its absolute value's byte
+// count, which can exceed the buffer. Only unsigned decimals are passed on.
+func decimalToIP(s string) net.IP {
+	if s == "" {
+		return nil
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return nil
+		}
+	}
+	ip, err := iputil.DecimalStrToIP(s, false)
+	if err != nil {
+		return nil
+	}
+	return ip
+}
+
 func AppendCSVRecord(f CmdImportFlags, dataColStart int, delim rune, parts []string, tree *mmdbwriter.Tree) error {
-	if startIp, _ := iputil.DecimalStrToIP(parts[0], false); startIp != nil {
+	if startIp := decimalToIP(parts[0]); startIp != nil {
 		parts[0] = startIp.String()
 	}
 
@@ -542,7 +566,7 @@ func AppendCSVRecord(f CmdImportFlags, dataColStart int, delim rune, parts []str
 
 	// convert 2 IPs into IP range?
 	if f.RangeMultiCol {
-		if endIp, _ := iputil.DecimalStrToIP(parts[1], false); endIp != nil {
+		if endIp := decimalToIP(parts[1]); endIp != nil {
 			parts[1] = endIp.String()
 		}
 
