@@ -138,6 +138,15 @@ func (d *decoder) readValue() (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// The entry count comes straight from the size prefix and can claim
+		// up to 16 million entries. Pre-allocating for that many entries
+		// lets a four-byte input ask for gigabytes of memory, so bound it by
+		// what the buffer can actually hold: each entry needs at least a
+		// key byte and a value byte.
+		if n > (len(d.buf)-d.off)/2 {
+			return nil, fmt.Errorf("decoder: map claims %d entries, but only %d bytes remain",
+				n, len(d.buf)-d.off)
+		}
 		m := make(map[string]any, n)
 		for i := 0; i < n; i++ {
 			kv, err := d.readValue()
@@ -165,6 +174,13 @@ func (d *decoder) readValue() (any, error) {
 		n, err := d.readSize(size)
 		if err != nil {
 			return nil, err
+		}
+		// Same bound as for maps: each element needs at least a control
+		// byte, so a count larger than the remaining buffer is bogus and
+		// would otherwise be allocated up front.
+		if n > len(d.buf)-d.off {
+			return nil, fmt.Errorf("decoder: array claims %d elements, but only %d bytes remain",
+				n, len(d.buf)-d.off)
 		}
 		a := make([]any, n)
 		for i := 0; i < n; i++ {
