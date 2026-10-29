@@ -375,7 +375,11 @@ func percentile(sorted []float64, p float64) float64 {
 	if lo == hi {
 		return sorted[lo]
 	}
-	return sorted[lo] + (idx-float64(lo))*(sorted[hi]-sorted[lo])
+	// Interpolate as a weighted blend of the two neighbours rather than as
+	// lo + frac*(hi-lo): the difference of two large values with opposite
+	// signs overflows to infinity, which would then poison the result.
+	frac := idx - float64(lo)
+	return sorted[lo]*(1-frac) + sorted[hi]*frac
 }
 
 // summarize computes descriptive statistics over xs. The trimmed mean drops
@@ -387,11 +391,14 @@ func summarize(xs []float64, trimPct float64) Stats {
 	cp := append([]float64(nil), xs...)
 	sort.Float64s(cp)
 
+	// Divide each sample by the count before summing rather than summing
+	// and dividing afterwards: the sum of the raw samples can overflow to
+	// infinity for large magnitudes, while the sum of the scaled samples
+	// cannot exceed the largest single sample.
 	mean := 0.0
 	for _, x := range cp {
-		mean += x
+		mean += x / float64(len(cp))
 	}
-	mean /= float64(len(cp))
 
 	v := 0.0
 	for _, x := range cp {
@@ -410,9 +417,8 @@ func summarize(xs []float64, trimPct float64) Stats {
 	}
 	trimmed := 0.0
 	for _, x := range keep {
-		trimmed += x
+		trimmed += x / float64(len(keep))
 	}
-	trimmed /= float64(len(keep))
 
 	return Stats{
 		N:       len(cp),
