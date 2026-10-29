@@ -92,14 +92,26 @@ func SignedPct(v float64) string {
 
 // SizeDelta returns "(saved 19.12 MB, -65.76%)" when output is
 // smaller, "(grew 2.13 MB, +5.40%)" when larger, or "(unchanged)".
+//
+// When the input size is zero the percentage is undefined, so only the
+// absolute change is reported.
 func SizeDelta(in, out int64) string {
 	diff := out - in
 	if diff == 0 {
 		return "(unchanged)"
 	}
-	pct := 100.0 * float64(diff) / float64(in)
 	if diff < 0 {
-		return fmt.Sprintf("(saved %s, %.2f%%)", DecimalBytes(uint64(-diff)), pct)
+		saved := fmt.Sprintf("(saved %s", DecimalBytes(uint64(-diff)))
+		if in == 0 {
+			return saved + ")"
+		}
+		pct := 100.0 * float64(diff) / float64(in)
+		return fmt.Sprintf("%s, %.2f%%)", saved, pct)
 	}
-	return fmt.Sprintf("(grew %s, +%.2f%%)", DecimalBytes(uint64(diff)), pct)
+	grew := fmt.Sprintf("(grew %s", DecimalBytes(uint64(diff)))
+	if in == 0 {
+		return grew + ")"
+	}
+	pct := 100.0 * float64(diff) / float64(in)
+	return fmt.Sprintf("%s, +%.2f%%)", grew, pct)
 }
