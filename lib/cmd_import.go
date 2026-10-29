@@ -534,6 +534,20 @@ func ParseJSONKeys(result map[string]interface{}, f *CmdImportFlags) {
 }
 
 func AppendCSVRecord(f CmdImportFlags, dataColStart int, delim rune, parts []string, tree *mmdbwriter.Tree) error {
+	// A row may have fewer columns than the header declared. The TSV reader
+	// doesn't enforce a consistent field count, so pad the missing trailing
+	// columns with empty values instead of indexing past the end.
+	need := dataColStart + len(f.Fields)
+	if f.RangeMultiCol && need < 2 {
+		// The range columns are start_ip and end_ip.
+		need = 2
+	}
+	if len(parts) < need {
+		padded := make([]string, need)
+		copy(padded, parts)
+		parts = padded
+	}
+
 	if startIp, _ := iputil.DecimalStrToIP(parts[0], false); startIp != nil {
 		parts[0] = startIp.String()
 	}
