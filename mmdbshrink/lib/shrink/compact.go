@@ -129,6 +129,31 @@ func compactDataSection(logger *slog.Logger, dataSection []byte, roots []uint32)
 			continue
 		}
 		if r.offset+r.length <= curEnd {
+			// The nested record's bytes live inside the keeper's bytes, so
+			// they survive compaction only if the keeper copies them
+			// verbatim. A pointer inside the keeper is not copied: its
+			// encoding is replaced wholesale by the re-encoded pointer.
+			// A nested record overlapping such an encoding loses its bytes,
+			// and the offset derived for it below would point at unrelated
+			// data. That means the input has a value overlapping a
+			// pointer's encoding, which no writer produces.
+			keeper := keepers[len(keepers)-1]
+			for _, p := range keeper.ptrs {
+				pStart := p.offset
+				pEnd := p.offset + uint32(p.width)
+				if pEnd <= r.offset || r.offset+r.length <= pStart {
+					continue
+				}
+				// A pointer wholly inside the nested record belongs to the
+				// nested record and is rewritten as part of it.
+				if pStart >= r.offset && pEnd <= r.offset+r.length {
+					continue
+				}
+				return compactResult{}, fmt.Errorf(
+					"nested record [%d,%d) overlaps the pointer encoding [%d,%d) at %d — malformed mmdb",
+					r.offset, r.offset+r.length, pStart, pEnd, p.offset,
+				)
+			}
 			nested = append(nested, nestedEntry{
 				offset:       r.offset,
 				outerOffset:  curOff,
